@@ -46,16 +46,22 @@ Explore how genre popularity has shifted throughout the history of cinema.
 
 
 ---
+## Data
 
-## Dataset
+This project uses the official IMDb public datasets:
 
-This project uses the official IMDb datasets:
+- title.basics.tsv.gz
+- title.ratings.tsv.gz
+- name.basics.tsv.gz
 
-- `title.basics`
-- `title.ratings`
-- `name.basics`
+The raw datasets are available from the IMDb Non-Commercial Datasets website.
 
-The raw datasets were cleaned, merged, and transformed into optimized `.rds` files to significantly reduce application startup time and improve deployment performance.
+To recreate the processed data used by the application:
+
+1. Download the IMDb datasets.
+2. Place them in an `imdb_data/` directory.
+3. Run `prepare_data.R`.
+4. Launch the application with `app.R`.
 
 ---
 
