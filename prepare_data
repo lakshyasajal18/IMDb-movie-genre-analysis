@@ -1,0 +1,118 @@
+library(tidyverse)
+# Load raw data
+movies <- read_tsv("imdb_data/title.basics.tsv.gz", 
+                   col_types = cols(
+                     tconst = col_character(),
+                     titleType = col_character(),
+                     primaryTitle = col_character(),
+                     originalTitle = col_character(),
+                     isAdult = col_integer(),
+                     startYear = col_character(),
+                     endYear = col_character(),
+                     runtimeMinutes = col_character(),
+                     genres = col_character()
+                   ))
+
+ratings <- read_tsv("imdb_data/title.ratings.tsv.gz", 
+                    col_types = cols(
+                      tconst = col_character(),
+                      averageRating = col_double(),
+                      numVotes = col_integer()
+                    ))
+
+names_data <- read_tsv("imdb_data/name.basics.tsv.gz", 
+                       col_types = cols(
+                         nconst = col_character(),
+                         primaryName = col_character(),
+                         birthYear = col_character(),
+                         deathYear = col_character(),
+                         primaryProfession = col_character(),
+                         knownForTitles = col_character()
+                       ))
+
+# Clean and preprocess movie data
+movies_clean <- movies %>%
+  mutate(
+    startYear = as.numeric(if_else(startYear == "\\N", NA_character_, startYear)),
+    endYear = as.numeric(if_else(endYear == "\\N", NA_character_, endYear)),
+    runtimeMinutes = as.numeric(if_else(runtimeMinutes == "\\N", NA_character_, runtimeMinutes)),
+    genres = if_else(genres == "\\N", "Misc", genres),
+    decade = floor(startYear / 10) * 10
+  ) %>%
+  filter(
+    titleType %in% c("movie", "tvMovie"),
+    !is.na(startYear),
+    startYear >= 1900,
+    startYear <= 2024
+  )
+
+# Combine movie data with ratings
+movies_with_ratings <- movies_clean %>%
+  inner_join(ratings, by = "tconst")
+
+movies_genres_split <- movies_clean %>%
+  separate_rows(genres, sep = ",") %>%
+  mutate(is_adult_content = if_else(isAdult == 1, "Adult", "Non-Adult"))
+
+
+
+
+# Global film hubs
+global_film_hubs <- data.frame(
+  city = c("Hollywood", "Mumbai", "London", "Hong Kong", "Seoul",
+           "Tokyo", "Lagos", "Vancouver", "Sydney", "Berlin",
+           "Paris", "Cinecittà", "Chennai", "Singapore", "Cairo"),
+  country = c("USA", "India", "UK", "China", "South Korea", "Japan", "Nigeria", "Canada",
+              "Australia", "Germany", "France", "Italy", "India", "Singapore", "Egypt"),
+  longitude = c(-118.3267, 72.8777, -0.1276, 114.1694, 126.9780, 139.7690, 3.3792,
+                -123.1207, 151.2093, 13.4050, 2.3522, 12.4964, 80.2707, 103.8198, 31.2357),
+  latitude = c(34.1017, 19.0760, 51.5074, 22.3193, 37.5665, 35.6804, 6.5244, 49.2827,
+               -33.8688, 52.5200, 48.8566, 41.9028, 13.0827, 1.3521, 30.0444),
+  annual_productions = c(600, 1500, 100, 200, 700, 1000, 2500, 500, 50, 300, 300,
+                         150, 1600, 200, 50),
+  industry_name = c("Hollywood", "Bollywood", "British Film Industry", "Hong Kong Cinema",
+                    "Hallyuwood", "Japanese Cinema", "Nollywood", "Hollywood North",
+                    "Australian Cinema", "German Cinema", "French Cinema", "Italian Cinema",
+                    "Kollywood", "Singaporean Cinema", "Egyptian Cinema")
+)
+
+# Genre ratings by decade
+ratings_by_decade_genre <- movies_with_ratings %>%
+  separate_rows(genres, sep = ",") %>%
+  filter(!is.na(genres)) %>%
+  group_by(genres, decade) %>%
+  summarize(avg_rating = mean(averageRating, na.rm = TRUE), .groups = 'drop') %>%
+  filter(!is.na(decade))
+
+# Genre distribution over time
+genre_dist <- movies_with_ratings %>%
+  separate_rows(genres, sep = ",") %>%
+  count(decade, genres) %>%
+  group_by(decade) %>%
+  mutate(proportion = n / sum(n)) %>%
+  filter(!is.na(decade))
+
+# Names by profession
+profession_trends <- names_data %>%
+  separate_rows(primaryProfession, sep = ",") %>%
+  mutate(
+    birthYear = as.numeric(birthYear),
+    primaryProfession = trimws(primaryProfession)
+  ) %>%
+  filter(
+    !is.na(birthYear),
+    birthYear >= 1990,
+    !is.na(primaryProfession),
+    primaryProfession != "",
+    primaryProfession != "\\N"
+  ) %>%
+  count(birthYear, primaryProfession)
+
+dir.create("data", showWarnings = FALSE)
+
+saveRDS(movies_clean, "data/movies_clean.rds")
+saveRDS(movies_genres_split, "data/movies_genres_split.rds")
+saveRDS(ratings_by_decade_genre, "data/ratings_by_decade_genre.rds")
+saveRDS(genre_dist, "data/genre_dist.rds")
+saveRDS(profession_trends, "data/profession_trends.rds")
+saveRDS(global_film_hubs, "data/global_film_hubs.rds")
